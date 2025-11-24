@@ -1,0 +1,159 @@
+Project Specification: "DietPi SysAdmin" AI Agent
+
+1. Project Overview
+
+Goal: Build an autonomous AI agent capable of managing a DietPi (Debian-based) home server using natural language. Context: CS4990 AI Agent Project. The agent must act as an intelligent interface between the user and the Linux shell, translating intent (e.g., "Free up space") into safe, executable system commands. Hardware: DietPi (Lightweight Debian Linux).
+
+2. Core Requirements (Strict Adherence)
+
+The agent must implement the following modules to satisfy grading criteria:
+
+A. LLM Integration Module
+
+    Provider: OpenAI API (GPT-4o-mini) or Anthropic API (Claude 3.5 Haiku) for low latency.
+
+    Function: Receive user NL input, output structured JSON command objects.
+
+    Resilience: Must handle API errors and rate limiting gracefully.
+
+B. Action Interpreter & Executor
+
+    Parsing: Convert LLM JSON response into python subprocess calls.
+
+Domain: System commands (apt, docker, systemctl, rm, df, htop parsing).
+
+    Output: Capture stdout and stderr to feed back to the LLM or user.
+
+C. User Interface (TUI)
+
+    Type: Terminal User Interface (using Python rich library) is preferred for a headless server environment.
+
+    Features:
+
+        Input field for Natural Language.
+
+        "Thinking" status indicator.
+
+        Display of proposed actions.
+
+        Execution status and final output.
+
+D. Safety & Error Handling (Critical)
+
+    Validation: The agent must not execute code blindly. It must parse JSON.
+
+    Human-in-the-loop: High-risk commands (e.g., rm, shutdown, stopping services) require explicit user confirmation (Y/N).
+
+Audit Log: All actions, timestamps, and LLM reasoning must be logged to agent_audit.log.
+
+3. Technical Stack & Architecture
+
+Language: Python 3.11+ Libraries:
+
+    openai or anthropic (LLM Client)
+
+    rich (UI/Formatting)
+
+    pydantic (Data validation/Schema)
+
+    subprocess (Command execution)
+
+    dotenv (Environment variables)
+
+Data Flow:
+
+    User Input: "Check why the server is sluggish."
+
+    LLM Processing: Generates JSON plan: {"cmd": "htop -b -n 1", "risk": "low", "reason": "Checking CPU load"}.
+
+    Safety Check: Code checks "risk". If "low", proceed. If "high", prompt user.
+
+    Execution: Run command via subprocess.
+
+    Feedback: Return output to LLM to summarize for user ("CPU is at 90% due to Plex").
+
+4. Implementation Steps for Cursor
+
+Step 1: Environment Setup
+
+    Create a virtual environment.
+
+    Install requirements.
+
+    Setup .env for API keys.
+
+Step 2: The "Brain" (Prompt Engineering)
+
+Create a prompts.py file. The system prompt must enforce JSON output.
+
+    Role: "You are an expert Linux Sysadmin on DietPi."
+
+    Constraint: "Output ONLY valid JSON."
+
+    Schema:
+    JSON
+
+    {
+      "thought_process": "Analyzing request...",
+      "command": "sudo apt-get autoremove -y",
+      "explanation": "Removing unused packages.",
+      "risk_level": "medium" // (low, medium, high)
+    }
+
+Step 3: The "Hands" (Action Executor)
+
+Create executor.py.
+
+    Implement a function execute_command(command: str).
+
+    Use subprocess.run with capture_output=True.
+
+    Implement a whitelist of allowed base commands (optional but good for safety) or a blacklist of banned commands (e.g., rm -rf /).
+
+Step 4: The Safety Layer
+
+Create safety.py.
+
+    Implement logic: If risk_level is "high" OR command contains destructive keywords (rm, > /dev/null, dd), pause execution and await user input.
+
+    Implement logging: Write every action to logs/audit.log.
+
+Step 5: The UI (Main Loop)
+
+Create main.py.
+
+    Use the rich library to create a nice loop.
+
+    Print a header.
+
+    Loop: Get Input -> Call Agent -> Show Plan -> Confirm -> Execute -> Show Result.
+
+5. Specific DietPi Considerations
+
+    Package Manager: Use apt or dietpi-software.
+
+    Services: Use systemctl or dietpi-services.
+
+    Logs: Use journalctl or check /var/log.
+
+    Permissions: The script will likely need to be run with sudo privileges to perform admin tasks, or the user needs to be in the sudoers file without password prompt (handle with care).
+
+6. Example User Scenarios (for Testing)
+
+    Scenario: "Clean up the system."
+
+        Expected Action: Agent proposes sudo apt-get autoremove and sudo apt-get clean.
+
+        Safety: Risk Medium. Requires confirmation.
+
+    Scenario: "What is using the most RAM?"
+
+        Expected Action: Agent runs ps aux --sort=-%mem | head -n 5.
+
+        Safety: Risk Low. Auto-executes.
+
+    Scenario: "Restart the Nginx server."
+
+        Expected Action: Agent runs sudo systemctl restart nginx.
+
+        Safety: Risk Medium. Requires confirmation.
