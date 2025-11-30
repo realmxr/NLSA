@@ -32,7 +32,7 @@ def get_agent_response(user_input: str) -> AgentResponse:
                 {"role": "user", "content": user_input}
             ],
             response_format={"type": "json_object"},
-            temperature=0
+            temperature=1
         )
         
         content = completion.choices[0].message.content

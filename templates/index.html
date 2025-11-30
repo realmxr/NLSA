@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLSA - System Administrator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">DietPi SysAdmin</div>
+            <div class="status-indicator online"></div>
+        </header>
+        
+        <main id="chat-container">
+            <div class="welcome-message">
+                <h1>System Administrator Agent</h1>
+                <p>Ready to assist with system tasks.</p>
+            </div>
+            <!-- Messages will be injected here -->
+        </main>
+
+        <div class="input-area">
+            <div class="input-container">
+                <input type="text" id="user-input" placeholder="Type a command..." autocomplete="off">
+                <button id="send-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plan Confirmation Modal -->
+    <div id="modal-overlay" class="hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Proposed Plan</h2>
+            </div>
+            <div class="modal-content">
+                <div id="thought-process" class="thought-section"></div>
+                <div class="actions-list" id="actions-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-plan-btn" class="secondary-btn">Cancel</button>
+                <button id="execute-plan-btn" class="primary-btn">Execute</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
+

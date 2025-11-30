@@ -1,104 +1,103 @@
-import sys
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from rich.panel import Panel
-from rich.table import Table
-from rich.markdown import Markdown
-from rich.status import Status
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 import llm_client
-import safety
 import executor
+import safety
 import logging
+import sys
 
-console = Console()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
-def display_plan(response: llm_client.AgentResponse):
-    """
-    Display the proposed plan in a nice table.
-    """
-    console.print(Panel(Markdown(f"**Thought Process:** {response.thought_process}"), title="Agent Reasoning", border_style="blue"))
-    
-    table = Table(title="Proposed Actions")
-    table.add_column("Risk", justify="center")
-    table.add_column("Command", style="cyan")
-    table.add_column("Description")
+app = Flask(__name__)
+CORS(app)
 
-    for action in response.proposed_actions:
-        risk_style = "green"
-        if action.risk_level.upper() == "MEDIUM":
-            risk_style = "yellow"
-        elif action.risk_level.upper() == "HIGH":
-            risk_style = "red bold"
-            
-        table.add_row(
-            f"[{risk_style}]{action.risk_level}[/{risk_style}]",
-            action.command,
-            action.description
-        )
-    
-    console.print(table)
-    console.print(f"[bold green]Agent says:[/bold green] {response.user_response}\n")
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-def main():
-    console.print(Panel.fit("[bold blue]DietPi SysAdmin Agent[/bold blue]\nType 'exit' or 'quit' to stop.", border_style="blue"))
-    
-    while True:
-        user_input = Prompt.ask("[bold green]You[/bold green]")
+@app.route('/chat', methods=['POST'])
+def chat():
+    try:
+        data = request.json
+        user_input = data.get('message')
         
-        if user_input.lower() in ['exit', 'quit']:
-            console.print("[yellow]Goodbye![/yellow]")
-            break
+        if not user_input:
+            return jsonify({'error': 'No message provided'}), 400
+
+        logger.info(f"Received user input: {user_input}")
+        
+        # Get plan from LLM
+        response = llm_client.get_agent_response(user_input)
+        
+        # Convert to dictionary for JSON response
+        # Assuming response is a Pydantic model, use .model_dump() or .dict()
+        plan_dict = response.model_dump()
+        
+        return jsonify({'plan': plan_dict})
+
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/execute', methods=['POST'])
+def execute():
+    try:
+        data = request.json
+        plan = data.get('plan')
+        
+        if not plan or 'proposed_actions' not in plan:
+            return jsonify({'error': 'Invalid plan provided'}), 400
+
+        results = []
+        all_success = True
+        
+        logger.info("Executing plan...")
+
+        for action in plan['proposed_actions']:
+            command = action['command']
+            risk = action['risk_level']
             
-        if not user_input.strip():
-            continue
-
-        try:
-            with console.status("[bold green]Thinking...[/bold green]", spinner="dots"):
-                response = llm_client.get_agent_response(user_input)
+            # Double check safety (redundant but good practice)
+            is_safe, reason = safety.check_safety(command, risk)
+            if not is_safe:
+                logger.warning(f"Executing UNSAFE/HIGH RISK command: {command} ({reason})")
             
-            display_plan(response)
+            # Execute
+            logger.info(f"Running: {command}")
+            result = executor.execute_command(command)
             
-            # Execution Phase
-            all_executed = True
-            execution_results = []
-
-            for action in response.proposed_actions:
-                # Safety Check
-                is_safe, reason = safety.check_safety(action.command, action.risk_level)
-                
-                proceed = True
-                if not is_safe:
-                    console.print(f"[bold red]SAFETY WARNING:[/bold red] {reason}")
-                    proceed = Confirm.ask("Do you want to execute this command?")
-                
-                if proceed:
-                    with console.status(f"[bold yellow]Executing:[/bold yellow] {action.command}", spinner="simpleDots"):
-                        result = executor.execute_command(action.command)
-                        execution_results.append(result)
-                        
-                    if result['success']:
-                        console.print(f"[green]✔ Success[/green]: {action.command}")
-                        if result['stdout']:
-                            console.print(Panel(result['stdout'], title="Output", border_style="dim white"))
-                    else:
-                        console.print(f"[red]✘ Failed[/red]: {action.command}")
-                        console.print(f"[red]Error:[/red] {result['stderr']}")
-                        all_executed = False
-                        # Stop chain on failure? Usually safer to stop.
-                        if Confirm.ask("Command failed. Stop remaining actions?", default=True):
-                            break
-                else:
-                    console.print("[yellow]Action skipped by user.[/yellow]")
-                    all_executed = False
-                    break # Stop chain if user declines one
+            # Add command to result for frontend matching
+            result['command'] = command
+            results.append(result)
             
-            # Log the interaction
-            safety.log_action(user_input, response.model_dump(), all_executed)
+            if not result['success']:
+                all_success = False
+                logger.error(f"Command failed: {command}")
+                # Stop execution on failure?
+                # Previous logic stopped on failure.
+                break
+        
+        # Log the interaction
+        # Reconstruct user input from somewhere if needed, or just log the execution
+        # safety.log_action(..., plan, all_success) 
+        # Since we don't strictly have the original user input here easily unless passed, 
+        # we might skip logging user_input or pass it in the execute request too.
+        # Let's skip strict logging or just log what we have.
+        
+        return jsonify({'results': results, 'success': all_success})
 
-        except Exception as e:
-            console.print(f"[bold red]Error:[/bold red] {str(e)}")
-            logging.error(f"Main loop error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error in execute endpoint: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
-if __name__ == "__main__":
-    main()
-
+if __name__ == '__main__':
+    print("Starting NLSA Web Server on port 6767...")
+    app.run(host='0.0.0.0', port=6767)

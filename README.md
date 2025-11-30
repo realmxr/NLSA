@@ -17,32 +17,26 @@ This is an AI-powered system administrator agent for DietPi/Debian systems. It t
 
 ## Running the Agent
 
-### Option 1: Terminal Interface (CLI)
-Best for direct SSH access or local usage.
+Start the Flask Web Server:
 ```bash
 python main.py
 ```
-
-### Option 2: Web Interface (Streamlit)
-Best for remote access via browser.
-```bash
-streamlit run app.py --server.port 6767
-```
-Access at: `http://<your-dietpi-ip>:6767`
+Access the interface at: `http://<your-dietpi-ip>:6767` (or `http://localhost:6767`)
 
 ## Architecture
 
-- **main.py**: The TUI (Terminal User Interface).
-- **app.py**: The Streamlit Web Interface.
+- **main.py**: The Flask Web Server entry point.
 - **llm_client.py**: Handles communication with the OpenAI API using structured JSON outputs.
 - **executor.py**: Safely executes shell commands.
 - **safety.py**: Validates commands and manages risk levels.
 - **prompts.py**: Contains the system prompt.
 - **agent_audit.log**: Logs all actions taken by the agent.
+- **templates/ & static/**: Frontend assets (HTML/CSS/JS).
 
 ## Features
 
 - **Natural Language Input**: "Check disk space", "Restart nginx", "Update the system".
 - **Safety First**: High-risk commands (like `rm` or service restarts) require explicit confirmation.
 - **DietPi Aware**: Preferentially uses DietPi specific tools (`dietpi-services`, etc.) where applicable.
+- **Modern UI**: Dark-themed web interface with DietPi branding colors.
 - **Audit Logging**: Keeps a record of all operations.
