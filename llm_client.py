@@ -26,7 +26,7 @@ def get_agent_response(user_input: str) -> AgentResponse:
     """
     try:
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5-mini",
             messages=[
                 {"role": "system", "content": prompts.SYSTEM_PROMPT},
                 {"role": "user", "content": user_input}
