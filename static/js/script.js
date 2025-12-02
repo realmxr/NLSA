@@ -39,8 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
         userInput.value = '';
         addMessage(text, 'user');
 
-        // Show loading or waiting state?
-        // For now just wait for response
+        // Show thinking indicator
+        const thinkingId = addThinkingBubble();
         
         try {
             const response = await fetch('/chat', {
@@ -50,6 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({ message: text })
             });
+
+            // Remove thinking indicator
+            removeThinkingBubble(thinkingId);
 
             if (!response.ok) {
                 throw new Error('Network response was not ok');
@@ -88,7 +91,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Error:', error);
+            // Remove thinking indicator if still there
+            removeThinkingBubble(thinkingId);
             addMessage('Sorry, something went wrong communicating with the server.', 'bot');
+        }
+    }
+
+    function addThinkingBubble() {
+        const id = 'thinking-' + Date.now();
+        const msgDiv = document.createElement('div');
+        msgDiv.classList.add('message', 'bot', 'thinking');
+        msgDiv.id = id;
+        
+        msgDiv.innerHTML = `
+            <div class="thinking-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        `;
+        
+        chatContainer.appendChild(msgDiv);
+        scrollToBottom();
+        return id;
+    }
+
+    function removeThinkingBubble(id) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.remove();
         }
     }
 
@@ -141,7 +172,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function executePlan() {
         modalOverlay.classList.add('hidden');
-        addMessage('Executing plan...', 'bot');
+        
+        // Create a container for execution logs
+        const logId = 'exec-log-' + Date.now();
+        const logDiv = document.createElement('div');
+        logDiv.classList.add('message', 'bot');
+        logDiv.id = logId;
+        logDiv.innerHTML = '<div class="message-content"><div>Executing plan...</div><div class="exec-steps" style="margin-top:0.5rem;"></div></div>';
+        chatContainer.appendChild(logDiv);
+        scrollToBottom();
+
+        const stepsContainer = logDiv.querySelector('.exec-steps');
+
+        // Because the backend executes all at once, we can't update per-step real-time easily 
+        // without websockets or SSE. For now, we'll show a thinking bubble "Running commands..."
+        // UPDATE: We will stream updates if we change backend, but for now, let's just wait.
+        
+        // Show a special "Working on it" indicator
+        stepsContainer.innerHTML = `<div class="thinking-dots"><span></span><span></span><span></span></div>`;
 
         try {
             const response = await fetch('/execute', {
@@ -154,28 +202,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             
+            // Clear the temporary loading dots
+            stepsContainer.innerHTML = '';
+            
             if (data.results) {
-                let resultHtml = '<div>Execution Complete:</div>';
                 data.results.forEach(res => {
                     const statusColor = res.success ? '#87d447' : '#e74c3c';
                     const symbol = res.success ? '✔' : '✘';
-                    resultHtml += `
-                        <div style="margin-top: 0.5rem; border-left: 2px solid ${statusColor}; padding-left: 0.5rem;">
-                            <div style="color: ${statusColor}; font-weight: bold;">${symbol} ${escapeHtml(res.command)}</div>
-                            ${res.stdout ? `<pre>${escapeHtml(res.stdout)}</pre>` : ''}
-                            ${res.stderr ? `<pre style="color: #e74c3c;">${escapeHtml(res.stderr)}</pre>` : ''}
-                        </div>
+                    
+                    const stepDiv = document.createElement('div');
+                    stepDiv.style.marginTop = '0.5rem';
+                    stepDiv.style.borderLeft = `2px solid ${statusColor}`;
+                    stepDiv.style.paddingLeft = '0.5rem';
+                    
+                    let stepHtml = `
+                        <div style="color: ${statusColor}; font-weight: bold;">${symbol} ${escapeHtml(res.command)}</div>
+                        ${res.stdout ? `<pre>${escapeHtml(res.stdout)}</pre>` : ''}
+                        ${res.stderr ? `<pre style="color: #e74c3c;">${escapeHtml(res.stderr)}</pre>` : ''}
                     `;
+                    
+                    stepDiv.innerHTML = stepHtml;
+                    stepsContainer.appendChild(stepDiv);
                 });
-                addMessage(resultHtml, 'bot', true);
+                
+                // Append final status
+                const finalStatus = document.createElement('div');
+                finalStatus.style.marginTop = '1rem';
+                finalStatus.style.fontWeight = 'bold';
+                finalStatus.textContent = data.success ? 'All commands executed successfully.' : 'Execution stopped due to failure.';
+                stepsContainer.appendChild(finalStatus);
+                
             } else {
-                addMessage('Execution finished with no details.', 'bot');
+                stepsContainer.textContent = 'Execution finished with no details.';
             }
 
         } catch (error) {
             console.error('Error:', error);
-            addMessage('Error executing plan.', 'bot');
+            stepsContainer.textContent = 'Error executing plan.';
         }
+        scrollToBottom();
     }
 
     function cancelPlan() {

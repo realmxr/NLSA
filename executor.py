@@ -16,7 +16,7 @@ def execute_command(command: str) -> dict:
             shell=True,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=120
         )
         
         return {
@@ -30,7 +30,7 @@ def execute_command(command: str) -> dict:
         return {
             "success": False,
             "stdout": "",
-            "stderr": "Command timed out after 30 seconds.",
+            "stderr": "Command timed out after 120 seconds.",
             "returncode": -1
         }
     except Exception as e:

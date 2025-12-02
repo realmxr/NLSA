@@ -126,6 +126,38 @@ header {
     border: 1px solid var(--border-color);
 }
 
+/* Thinking Bubble Styles */
+.message.thinking {
+    max-width: 100px;
+    padding: 0.8rem 1.2rem;
+    opacity: 0;
+    animation: slideUp 0.3s ease-out forwards;
+}
+
+.thinking-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    height: 10px;
+}
+
+.thinking-dots span {
+    width: 6px;
+    height: 6px;
+    background-color: var(--text-secondary);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
 .input-area {
     padding: 2rem;
     background-color: var(--bg-color);
