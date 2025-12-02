@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalOverlay = document.getElementById('modal-overlay');
     const executePlanBtn = document.getElementById('execute-plan-btn');
     const cancelPlanBtn = document.getElementById('cancel-plan-btn');
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
     
     let currentPlan = null;
 
@@ -248,6 +249,24 @@ document.addEventListener('DOMContentLoaded', () => {
         addMessage('Plan cancelled.', 'bot');
     }
 
+    async function clearHistory() {
+        if (!confirm('Are you sure you want to clear the conversation context?')) return;
+        
+        try {
+            await fetch('/clear_history', { method: 'POST' });
+            
+            // Clear UI
+            chatContainer.innerHTML = `
+                <div class="welcome-message">
+                    <h1>System Administrator Agent</h1>
+                    <p>Ready to assist with system tasks.</p>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error clearing history:', error);
+        }
+    }
+
     // Event Listeners
     sendBtn.addEventListener('click', handleSend);
     userInput.addEventListener('keypress', (e) => {
@@ -256,6 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     executePlanBtn.addEventListener('click', executePlan);
     cancelPlanBtn.addEventListener('click', cancelPlan);
+    clearHistoryBtn.addEventListener('click', clearHistory);
 
     // Utilities
     function escapeHtml(unsafe) {

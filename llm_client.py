@@ -1,6 +1,6 @@
 import os
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -20,17 +20,24 @@ class AgentResponse(BaseModel):
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def get_agent_response(user_input: str) -> AgentResponse:
+def get_agent_response(user_input: str, history: List[Dict[str, str]] = None) -> AgentResponse:
     """
-    Sends user input to LLM and returns structured response.
+    Sends user input to LLM and returns structured response, including chat history context.
     """
     try:
+        messages = [{"role": "system", "content": prompts.SYSTEM_PROMPT}]
+        
+        # Add conversation history if provided
+        if history:
+            for msg in history:
+                messages.append(msg)
+        
+        # Add current user input
+        messages.append({"role": "user", "content": user_input})
+
         completion = client.chat.completions.create(
             model="gpt-5-mini",
-            messages=[
-                {"role": "system", "content": prompts.SYSTEM_PROMPT},
-                {"role": "user", "content": user_input}
-            ],
+            messages=messages,
             response_format={"type": "json_object"},
             temperature=1
         )
@@ -46,4 +53,3 @@ def get_agent_response(user_input: str) -> AgentResponse:
     except Exception as e:
         # Fallback or error handling
         raise RuntimeError(f"LLM Error: {str(e)}")
-

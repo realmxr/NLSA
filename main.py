@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# In-memory chat history
+# Format: [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+CHAT_HISTORY = []
+MAX_HISTORY = 10  # Keep last 10 messages to prevent context window explosion
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -34,13 +39,25 @@ def chat():
 
         logger.info(f"Received user input: {user_input}")
         
-        # Get plan from LLM
-        response = llm_client.get_agent_response(user_input)
+        # Get plan from LLM with history
+        response = llm_client.get_agent_response(user_input, CHAT_HISTORY)
         
         # Convert to dictionary for JSON response
-        # Assuming response is a Pydantic model, use .model_dump() or .dict()
         plan_dict = response.model_dump()
         
+        # Update History
+        # 1. Add User Input
+        CHAT_HISTORY.append({"role": "user", "content": user_input})
+        
+        # 2. Add Agent Response (Summary) to history so the LLM knows what it proposed
+        # We use the user_response field for conversational continuity
+        CHAT_HISTORY.append({"role": "assistant", "content": plan_dict['user_response']})
+        
+        # Trim history if needed
+        if len(CHAT_HISTORY) > MAX_HISTORY:
+            CHAT_HISTORY.pop(0)
+            CHAT_HISTORY.pop(0) # Pop pair to keep roles aligned
+
         return jsonify({'plan': plan_dict})
 
     except Exception as e:
@@ -85,18 +102,21 @@ def execute():
                 # Previous logic stopped on failure.
                 break
         
-        # Log the interaction
-        # Reconstruct user input from somewhere if needed, or just log the execution
-        # safety.log_action(..., plan, all_success) 
-        # Since we don't strictly have the original user input here easily unless passed, 
-        # we might skip logging user_input or pass it in the execute request too.
-        # Let's skip strict logging or just log what we have.
+        # Optional: Add execution result to history for better context on failures/success?
+        # For now, we stick to conversational context to keep it simple.
         
         return jsonify({'results': results, 'success': all_success})
 
     except Exception as e:
         logger.error(f"Error in execute endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/clear_history', methods=['POST'])
+def clear_history():
+    global CHAT_HISTORY
+    CHAT_HISTORY = []
+    logger.info("Chat history cleared.")
+    return jsonify({'status': 'success'})
 
 if __name__ == '__main__':
     print("Starting NLSA Web Server on port 6767...")
